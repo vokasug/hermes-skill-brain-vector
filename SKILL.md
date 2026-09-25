@@ -1,8 +1,8 @@
 ---
 name: brain-vector
 description: "«мозг …» — поиск и ответы по векторной базе Brain."
-version: 1.0.0
-author: Hermes Agent
+version: 1.0.1
+author: vokasug, Hermes Agent
 license: MIT
 platforms: [macos]
 metadata:
