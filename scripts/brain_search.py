@@ -40,11 +40,14 @@ def main():
     qv = np.array(out.text_embeds.astype(mx.float32))[0].tolist()
 
     tbl = lancedb.connect(DB).open_table("chunks")
+    def sql(v):
+        return v.replace("'", "''")
+
     where = []
     if a.folder:
-        where.append(f"folder = '{a.folder}'")
+        where.append(f"folder = '{sql(a.folder)}'")
     if a.author:
-        where.append(f"lower(author) LIKE '%{a.author.lower()}%'")
+        where.append(f"lower(author) LIKE '%{sql(a.author.lower())}%'")
     if a.after:
         where.append(f"date >= '{a.after}'")
     if a.before:

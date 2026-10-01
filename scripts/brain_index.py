@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Индексация *_sum.md из ~/gdrive/Brain в векторную базу LanceDB.
 
-1 структурный блок = 1 запись: «Главная мысль», каждый тезис, «Вывод».
+1 абзац = 1 запись: абзацы разделов «Главная мысль», «Ключевые тезисы»,
+«Вывод». Разделитель абзацев — пустая строка; маркер списка в начале абзаца
+(`- `, `* `, `• `, `1. `) срезается, наличие дефисов не обязательно.
 Инкрементально: переиндексирует только новые/изменённые файлы (по хэшу),
 удаляет записи исчезнувших файлов.
 
@@ -33,8 +35,11 @@ def embed(model, tok, texts):
 def parse(f: pathlib.Path):
     """→ (meta dict, chunks list[(section, text)]) или None."""
     t = f.read_text(encoding="utf-8")
-    m = re.match(r"^- \*\*Название:\*\* ?(.*)\n- \*\*Автор:\*\* ?(.*)\n"
-                 r"- \*\*Дата публикации:\*\* ?(.*)\n- \*\*Ссылка:\*\* ?(.*)\n", t)
+    # шапка ищется в начале файла, а не строго с первого байта: лишний заголовок
+    # или пустая строка перед блоком метаданных больше не роняют файл целиком
+    m = re.search(r"^- \*\*Название:\*\* ?(.*)\n- \*\*Автор:\*\* ?(.*)\n"
+                  r"- \*\*Дата публикации:\*\* ?(.*)\n- \*\*Ссылка:\*\* ?(.*)\n",
+                  t[:2000], re.M)
     if not m:
         return None
     meta = {"title": m.group(1), "author": m.group(2), "date": m.group(3), "link": m.group(4)}
@@ -44,19 +49,23 @@ def parse(f: pathlib.Path):
         sm = re.search(rf"^# {name}\n(.*?)(?=^# |\Z)", body, re.M | re.S)
         return sm.group(1).strip() if sm else ""
 
+    marker = re.compile(r"^(?:[-*•]\s+|\d+[.)]\s+)")
+
+    def paragraphs(text):
+        # сначала по пустым строкам, затем внутри блока — по строкам, начинающимся
+        # с маркера: тесный список без пустых строк тоже даёт по записи на пункт
+        for block in re.split(r"\n\s*\n", text):
+            for part in re.split(r"\n(?=(?:[-*•]\s|\d+[.)]\s))", block.strip()):
+                part = marker.sub("", part.strip()).strip()
+                if part:
+                    yield part
+
     chunks = []
-    main = section("Главная мысль")
-    if main:
-        chunks.append(("мысль", main))
-    theses = section("Ключевые тезисы")
-    for b in re.split(r"\n\s*\n", theses):
-        b = b.strip()
-        if b.startswith("- "):
-            chunks.append(("тезис", b[2:].strip()))
-    out = section("Вывод")
-    if out:
-        chunks.append(("вывод", out))
-    return meta, [c for c in chunks if len(c[1]) > 20]
+    for name, label in (("Главная мысль", "мысль"),
+                        ("Ключевые тезисы", "тезис"),
+                        ("Вывод", "вывод")):
+        chunks.extend((label, p) for p in paragraphs(section(name)))
+    return meta, chunks
 
 
 def main():
@@ -72,7 +81,8 @@ def main():
     files = {f.name: f for f in ROOT.rglob("*_sum.md")}
     existing = {}
     tbl = None
-    if "chunks" in db.table_names() and not full:
+    tables = db.list_tables()
+    if "chunks" in getattr(tables, "tables", tables) and not full:
         tbl = db.open_table("chunks")
         for r in tbl.to_arrow().select(["filename", "fhash"]).to_pylist():
             existing[r["filename"]] = r["fhash"]
