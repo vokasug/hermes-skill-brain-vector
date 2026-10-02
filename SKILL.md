@@ -1,7 +1,7 @@
 ---
 name: brain-vector
 description: "вопрос к мозгу, удали из мозга, синхронизируй мозг"
-version: 1.1.2
+version: 1.1.3
 author: vokasug, Hermes Agent
 license: MIT
 platforms: [macos]
