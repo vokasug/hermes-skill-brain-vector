@@ -1,7 +1,7 @@
 ---
 name: brain-vector
-description: "«мозг …», «удали из мозга», «синхронизируй мозг»"
-version: 1.1.1
+description: "вопрос к мозгу, удали из мозга, синхронизируй мозг"
+version: 1.1.2
 author: vokasug, Hermes Agent
 license: MIT
 platforms: [macos]
